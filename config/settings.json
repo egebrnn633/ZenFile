@@ -11,5 +11,5 @@
     "05_音视频": [".mp4", ".mkv", ".mp3", ".wav"],
     "06_代码": [".py", ".java", ".js", ".html", ".json", ".sql"]
   },
-  "ignore_exts": [".tmp", ".crdownload", ".download", ".part", ".ini"]
+  "ignore_exts": [".tmp", ".crdownload", ".download", ".part", ".opdownload", ".lnk", ".url", ".ini", ".db", ".sys", ".bak", ".log", ".old", ".sav", ".lock"]
 }

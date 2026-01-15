@@ -15,6 +15,27 @@ def get_base_dir():
 BASE_DIR = get_base_dir()
 CONFIG_PATH = BASE_DIR / "config" / "settings.json"
 
+#--- 下载临时文件 ---
+# ".tmp",
+# ".crdownload",  # Chrome/Edge
+# ".download",  # Safari
+# ".part",  # Firefox
+# ".opdownload",  # Opera
+#
+#--- 快捷方式 ---
+# ".lnk",  # 软件快捷方式
+# ".url",  # 网页快捷方式
+#
+# --- 系统与配置 ---
+# ".ini",  # desktop.ini
+# ".db",  # Thumbs.db
+# ".sys",  # 系统文件
+#
+#--- 备份与日志 ---
+# ".bak",
+# ".log",
+# ".old"
+
 
 def load_config():
     """读取配置"""
@@ -29,7 +50,7 @@ def load_config():
                 "03_压缩包": [".zip", ".rar", ".7z"],
                 "04_安装包": [".exe", ".msi"]
             },
-            "ignore_exts": [".tmp", ".crdownload", ".ini", ".lnk"]
+            "ignore_exts": [".tmp", ".crdownload", ".download", ".part", ".opdownload", ".lnk", ".url", ".ini", ".db",".sys", ".bak", ".log", ".old", ".sav", ".lock"]
         }
 
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
