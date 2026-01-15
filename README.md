@@ -32,7 +32,7 @@ ZenFile 是一款轻量级的 Windows 桌面文件自动整理工具。它在后
 
 1.  **克隆项目**
     ```bash
-    git clone [https://github.com/your-username/ZenFile.git](https://github.com/your-username/ZenFile.git)
+    git clone https://github.com/moto-zsy/ZenFile
     cd ZenFile
     ```
 
@@ -59,7 +59,7 @@ ZenFile 是一款轻量级的 Windows 桌面文件自动整理工具。它在后
 
 ### 2. 暂停/恢复整理
 当您正在下载文件或需要临时在桌面上处理文件时，可以暂停自动整理：
-* **快捷键**：按下 `<ctrl>+<alt>+z`（默认）。
+* **快捷键**：按下 `ctrl+alt+z`（默认）。
 * **托盘菜单**：左键点击托盘图标，或右键选择状态切换。
 * **状态指示**：
     * **运行中**：文件会被立即移走。

@@ -21,13 +21,15 @@ def load_config():
     if not CONFIG_PATH.exists():
         # 默认配置
         return {
-            "watch_dirs": [],
-            "hotkey": "<ctrl>+<alt>+z",  # 默认快捷键
+            "watch_dirs": [],  # 默认不监控任何目录，让用户自己加
+            "hotkey": "<ctrl>+<alt>+z",
             "rules": {
-                "01_图片": [".jpg", ".png", ".gif"],
-                "02_文档": [".pdf", ".docx", ".txt"]
+                "01_图片": [".jpg", ".png", ".gif", ".jpeg", ".bmp", ".webp"],
+                "02_文档": [".pdf", ".docx", ".doc", ".txt", ".xlsx", ".xls", ".pptx"],
+                "03_压缩包": [".zip", ".rar", ".7z"],
+                "04_安装包": [".exe", ".msi"]
             },
-            "ignore_exts": [".tmp", ".crdownload"]
+            "ignore_exts": [".tmp", ".crdownload", ".ini", ".lnk"]
         }
 
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
