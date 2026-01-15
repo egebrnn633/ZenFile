@@ -1,0 +1,12 @@
+{
+  "watch_dir": "E:\\DownLoad",
+  "rules": {
+    "01_图片": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".ico"],
+    "02_文档": [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".md"],
+    "03_安装包": [".exe", ".msi", ".apk", ".dmg", ".iso"],
+    "04_压缩包": [".zip", ".rar", ".7z", ".tar", ".gz"],
+    "05_音视频": [".mp4", ".mkv", ".mp3", ".wav"],
+    "06_代码": [".py", ".java", ".js", ".html", ".json", ".sql"]
+  },
+  "ignore_exts": [".tmp", ".crdownload", ".download", ".part", ".ini"]
+}
