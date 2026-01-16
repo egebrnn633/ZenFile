@@ -1,5 +1,6 @@
 import shutil
 import time
+import sys
 from pathlib import Path
 from watchdog.events import FileSystemEventHandler
 
@@ -23,6 +24,16 @@ class FileOrganizer(FileSystemEventHandler):
 
     def process_file(self, file_path_str):
         file_path = Path(file_path_str)
+
+        # 这样打开 Word/Excel 时产生的临时文件就不会被乱动了
+        if not file_path.exists() or file_path.name.startswith(".") or file_path.name.startswith("~$"):
+            return
+        # 新增程序对自身目录判断
+        if file_path.resolve() == Path(sys.executable).resolve():
+            return
+
+        if file_path.suffix.lower() in self.ignore_exts:
+            return
 
         if not file_path.exists() or file_path.name.startswith("."):
             return

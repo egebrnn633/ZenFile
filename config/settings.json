@@ -4,12 +4,13 @@
     "E:\\发票行程单"
   ],
   "rules": {
-    "01_图片": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".ico"],
-    "02_文档": [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".md"],
-    "03_安装包": [".exe", ".msi", ".apk", ".dmg", ".iso"],
-    "04_压缩包": [".zip", ".rar", ".7z", ".tar", ".gz"],
-    "05_音视频": [".mp4", ".mkv", ".mp3", ".wav"],
-    "06_代码": [".py", ".java", ".js", ".html", ".json", ".sql"]
+    "01_图片": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"],
+    "02_文档": [".pdf", ".docx", ".doc", ".txt", ".md", ".xlsx", ".xls", ".pptx", ".ppt", ".csv"],
+    "03_视频": [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv"],
+    "04_音频": [".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"],
+    "05_压缩包": [".zip", ".rar", ".7z", ".tar", ".gz", ".iso"],
+    "06_安装包": [".exe", ".msi"],
+    "07_代码": [".py", ".java", ".html", ".css", ".js", ".json", ".sql", ".c", ".cpp"]
   },
   "ignore_exts": [".tmp", ".crdownload", ".download", ".part", ".opdownload", ".lnk", ".url", ".ini", ".db", ".sys", ".bak", ".log", ".old", ".sav", ".lock"]
 }
