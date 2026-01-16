@@ -12,5 +12,11 @@
     "06_安装包": [".exe", ".msi"],
     "07_代码": [".py", ".java", ".html", ".css", ".js", ".json", ".sql", ".c", ".cpp"]
   },
+  "keyword_rules": {
+    "合同": "02_文档/合同",
+    "发票": "02_文档/财务",
+    "报告": "02_文档/报告",
+    "设计": "01_图片/设计"
+  },
   "ignore_exts": [".tmp", ".crdownload", ".download", ".part", ".opdownload", ".lnk", ".url", ".ini", ".db", ".sys", ".bak", ".log", ".old", ".sav", ".lock"]
 }
