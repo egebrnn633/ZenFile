@@ -2,133 +2,80 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from zenfile.utils.config import save_config
 from zenfile.utils.system import set_autorun, is_autorun_enabled
-from .components import center_window
+from .components import center_window, HotkeyRecorder, ToolTip
+
 
 class SettingsWindow:
-    def __init__(self, root, organizer, current_config):
-        self.root = root
+    def __init__(self, window, organizer, monitor_mgr, hotkey_mgr):
+        self.window = window
         self.organizer = organizer
-        self.config = current_config
+        self.monitor_mgr = monitor_mgr
+        self.hotkey_mgr = hotkey_mgr
+        self.config = organizer.config
 
-        self.root.title("ZenFile 设置")
-        self.root.geometry("500x550")
-        self.root.resizable(False, False)
+        self.window.title("ZenFile 设置")
+        center_window(self.window)
+        self.window.resizable(False, False)
 
-        # 居中显示
-        center_window(root)
+        nb = ttk.Notebook(self.window)
+        nb.pack(fill='both', expand=True, padx=10, pady=10)
+        f1, f2 = ttk.Frame(nb), ttk.Frame(nb)
+        nb.add(f1, text='常规');
+        nb.add(f2, text='目录')
 
-        # 布局容器
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(expand=True, fill='both', padx=10, pady=10)
+        # 常规
+        self.v_run = tk.BooleanVar(value=is_autorun_enabled())
+        ttk.Checkbutton(f1, text="开机自启", variable=self.v_run, command=self.tog_run).pack(anchor='w', padx=20, pady=20)
 
-        # 初始化页面
-        self.frame_general = ttk.Frame(self.notebook)
-        self.frame_watch = ttk.Frame(self.notebook)
+        gf = ttk.LabelFrame(f1, text="快捷键")
+        gf.pack(fill='x', padx=20)
+        self.hk = HotkeyRecorder(gf, default_value=self.config.get("hotkey", "<ctrl>+<alt>+z"))
+        self.hk.pack(fill='x', padx=10, pady=10)
 
-        self.notebook.add(self.frame_general, text='常规设置')
-        self.notebook.add(self.frame_watch, text='监控目录')
+        af = ttk.LabelFrame(f1, text="操作")
+        af.pack(fill='x', padx=20, pady=10)
+        ttk.Button(af, text="立即整理", command=self.run_now).pack(side='left', padx=10, pady=10)
+        ttk.Button(af, text="撤销一步", command=self.undo).pack(side='left', padx=10, pady=10)
 
-        self.setup_general_tab()
-        self.setup_watch_tab()
+        # 目录
+        self.lb = tk.Listbox(f2, height=15)
+        self.lb.pack(fill='both', padx=10, pady=10)
+        for p in self.config.get("watch_dirs", []): self.lb.insert(tk.END, p)
+        bf = ttk.Frame(f2)
+        bf.pack(fill='x', padx=10)
+        ttk.Button(bf, text="添加", command=self.add).pack(side='left');
+        ttk.Button(bf, text="删除", command=self.rem).pack(side='left')
 
-        # 底部保存按钮
-        btn_frame = ttk.Frame(self.root)
-        btn_frame.pack(fill='x', padx=20, pady=10)
-        ttk.Button(btn_frame, text="保存并应用", command=self.save_settings).pack(side='right')
+        ttk.Button(self.window, text="保存", command=self.save).pack(pady=10)
 
+    def run_now(self):
+        c = self.organizer.run_now()
+        messagebox.showinfo("完成", f"已处理 {c} 个文件")
 
+    def undo(self):
+        s, m = self.organizer.undo_last_action()
+        messagebox.showinfo("结果", m)
 
-    def setup_general_tab(self):
-        # 1. 开机自启
-        self.var_autorun = tk.BooleanVar(value=is_autorun_enabled())
-        chk_autorun = ttk.Checkbutton(self.frame_general, text="开机自动启动", variable=self.var_autorun,
-                                      command=self.toggle_autorun)
-        chk_autorun.pack(anchor='w', padx=20, pady=20)
+    def tog_run(self):
+        if not set_autorun(self.v_run.get()): self.v_run.set(not self.v_run.get())
 
-        # 2. 快捷键设置
-        frame_hotkey = ttk.LabelFrame(self.frame_general, text="快捷键 (暂停/恢复)")
-        frame_hotkey.pack(fill='x', padx=20, pady=10)
+    def add(self):
+        p = filedialog.askdirectory()
+        if p and p not in self.lb.get(0, tk.END): self.lb.insert(tk.END, p)
 
-        self.entry_hotkey = ttk.Entry(frame_hotkey)
-        self.entry_hotkey.insert(0, self.config.get("hotkey", "<ctrl>+<alt>+z"))
-        self.entry_hotkey.pack(fill='x', padx=10, pady=10)
-        ttk.Label(frame_hotkey, text="* 修改后需重启软件生效", foreground="gray").pack(anchor='w', padx=10, pady=0)
+    def rem(self):
+        s = self.lb.curselection()
+        if s: self.lb.delete(s)
 
-        # --- 新增功能区 ---
-        ttk.Separator(self.frame_general, orient='horizontal').pack(fill='x', padx=20, pady=10)
-
-        action_frame = ttk.LabelFrame(self.frame_general, text="手动操作")
-        action_frame.pack(fill='x', padx=20, pady=5)
-
-        # 立即整理按钮
-        self.btn_run_now = ttk.Button(action_frame, text="🧹 立即整理所有目录", command=self.do_run_now)
-        self.btn_run_now.pack(side='left', padx=10, pady=10, expand=True, fill='x')
-
-        # 撤销按钮
-        self.btn_undo = ttk.Button(action_frame, text="↩️ 撤销上一步", command=self.do_undo)
-        self.btn_undo.pack(side='left', padx=10, pady=10, expand=True, fill='x')
-
-    def setup_watch_tab(self):
-        # 目录列表
-        self.listbox = tk.Listbox(self.frame_watch, height=15)
-        self.listbox.pack(fill='both', expand=True, padx=10, pady=10)
-
-        # 加载已有目录
-        for path in self.config.get("watch_dirs", []):
-            self.listbox.insert(tk.END, path)
-
-        # 按钮区
-        btn_frame = ttk.Frame(self.frame_watch)
-        btn_frame.pack(fill='x', padx=10, pady=5)
-
-        ttk.Button(btn_frame, text="➕ 添加目录", command=self.add_dir).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text="➖ 删除选中", command=self.remove_dir).pack(side='left', padx=5)
-
-    # --- 逻辑处理 ---
-    def do_run_now(self):
-        ans = messagebox.askyesno("确认", "确定要立即整理所有监控目录下的文件吗？")
-        if ans:
-            count = self.organizer.run_now()
-            messagebox.showinfo("完成", f"整理完成！\n共扫描处理了 {count} 个文件。")
-
-    def do_undo(self):
-        success, msg = self.organizer.undo_last_action()
-        if success:
-            messagebox.showinfo("撤销成功", msg)
-        else:
-            messagebox.showwarning("撤销失败", msg)
-
-    def toggle_autorun(self):
-        success = set_autorun(self.var_autorun.get())
-        if not success:
-            # 如果失败，回滚状态
-            self.var_autorun.set(not self.var_autorun.get())
-            messagebox.showerror("错误", "无法修改注册表，请尝试以管理员身份运行。")
-
-    def add_dir(self):
-        path = filedialog.askdirectory()
-        if path:
-            # 简单的查重
-            current_paths = self.listbox.get(0, tk.END)
-            if path not in current_paths:
-                self.listbox.insert(tk.END, path)
-
-    def remove_dir(self):
-        selection = self.listbox.curselection()
-        if selection:
-            self.listbox.delete(selection)
-
-    def save_settings(self):
-        # 收集数据
-        new_watch_dirs = list(self.listbox.get(0, tk.END))
-        new_hotkey = self.entry_hotkey.get().strip()
-
-        # 更新配置对象
-        self.config["watch_dirs"] = new_watch_dirs
-        self.config["hotkey"] = new_hotkey
-
-        # 保存到文件
+    def save(self):
+        dirs = list(self.lb.get(0, tk.END))
+        hk = self.hk.get_hotkey()
+        self.config.update({"watch_dirs": dirs, "hotkey": hk})
         save_config(self.config)
 
-        messagebox.showinfo("保存成功", "配置已保存！\n部分设置（如快捷键、新目录监控）可能需要重启软件生效。")
-        self.root.destroy()
+        self.organizer.reload_config(self.config)
+        self.monitor_mgr.update_watches(dirs)
+        self.hotkey_mgr.restart(hk)
+
+        messagebox.showinfo("成功", "配置已保存并立即生效")
+        self.window.destroy()
