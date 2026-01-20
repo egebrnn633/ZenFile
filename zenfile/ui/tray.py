@@ -1,25 +1,29 @@
-import sys, os, platform, threading, tkinter as tk
+import sys, os, platform, threading
+import tkinter as tk
+import customtkinter as ctk  # 引入 CTK
 import pystray
 from PIL import Image
 from pystray import MenuItem as item
-from zenfile.utils.system import get_resource_path
 
+from zenfile.utils.system import get_resource_path
 from pynput import keyboard
 from zenfile.utils.config import load_config
 from zenfile.utils.logger import setup_logger
 from zenfile.core.organizer import Organizer
 from zenfile.core.monitor import MonitorManager
 
-
-
 if platform.system() == "Windows":
     import win32event, win32api, winerror
+
+# 设置 CTK 全局主题 (建议放在文件最上方)
+ctk.set_appearance_mode("System")
+ctk.set_default_color_theme("blue")
 
 
 class HotkeyManager:
     def __init__(self, logger, cb):
-        self.logger = logger;
-        self.cb = cb;
+        self.logger = logger
+        self.cb = cb
         self.listener = None
 
     def start(self, key):
@@ -46,7 +50,7 @@ class HotkeyManager:
 
 class SystemTray:
     def __init__(self, root, organizer, monitor_mgr, hotkey_mgr, on_quit):
-        self.root = root
+        self.root = root  # 这里传入的是 ctk.CTk 实例
         self.organizer = organizer
         self.monitor_mgr = monitor_mgr
         self.hotkey_mgr = hotkey_mgr
@@ -62,7 +66,6 @@ class SystemTray:
             }
         except Exception as e:
             print(f"图标加载失败: {e}")
-            # 兜底：防止没有图片导致崩溃
             self.imgs = {
                 "run": Image.new('RGB', (64, 64), color='blue'),
                 "pause": Image.new('RGB', (64, 64), color='gray')
@@ -109,31 +112,58 @@ class SystemTray:
             return
 
         try:
+            # 注意这里路径可能需要调整，取决于你的文件结构
+            # 假设 main_window.py 和 main.py 在同级目录: from .main_window import SettingsWindow
             from .main_window import SettingsWindow
-            self.win = tk.Toplevel(self.root)
+
+            # 使用 CTkToplevel 创建现代化窗口
+            self.win = ctk.CTkToplevel(self.root)
+            # 必须设置属性防止被垃圾回收或意外关闭
+            self.win.protocol("WM_DELETE_WINDOW", self._on_win_close)
+
             SettingsWindow(self.win, self.organizer, self.monitor_mgr, self.hotkey_mgr)
+
+            # 确保窗口显示在最前
+            self.win.lift()
+            self.win.focus_force()
         except Exception as e:
             print(f"打开设置窗口失败: {e}")
             import traceback
             traceback.print_exc()
 
+    def _on_win_close(self):
+        if self.win:
+            self.win.destroy()
+            self.win = None
+
     def quit(self, i, it):
         if self.on_quit: self.on_quit()
 
+
 def main():
-    # 1. 单例
+    # 1. 单例 (Windows)
     if platform.system() == "Windows":
         mutex = win32event.CreateMutex(None, False, "Global\\ZenFile_v1_Lock")
-        if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS: sys.exit(0)
+        if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+            sys.exit(0)
 
-    # 2. 基础
+    # 2. 基础配置
     logger = setup_logger()
     config = load_config()
     logger.info(">>> ZenFile 启动")
 
-    # 3. 核心对象
-    root = tk.Tk();
-    root.withdraw()  # 主线程 GUI 根
+    # 3. 核心对象初始化
+    # 使用 CTk 替代 Tk 作为根窗口
+    root = ctk.CTk()
+    root.withdraw()  # 隐藏主窗口，只显示托盘
+
+    # 必须在主循环开始前配置好 DPI 感知（CTK 会自动处理，但为了稳妥）
+    if platform.system() == "Windows":
+        try:
+            ctk.deactivate_automatic_dpi_awareness()  # 如果布局错乱可尝试开启或关闭此行
+        except:
+            pass
+
     org = Organizer(config, logger)
     mon_mgr = MonitorManager(org, logger)
     mon_mgr.start(config.get("watch_dirs", []))
@@ -142,7 +172,7 @@ def main():
     def shutdown():
         logger.info("退出中...")
         hk_mgr.stop()
-        tray.stop_service()  # 消除幽灵图标
+        tray.stop_service()
         mon_mgr.stop()
         try:
             root.quit()
@@ -156,6 +186,8 @@ def main():
 
     # 6. 启动
     hk_mgr.start(config.get("hotkey", "<ctrl>+<alt>+z"))
+
+    # 托盘图标必须在独立线程运行，否则会阻塞 GUI 主循环
     threading.Thread(target=tray.run, daemon=True).start()
 
     try:
