@@ -1,221 +1,126 @@
-import threading
+import sys
 import os
+import platform
+import threading
 import tkinter as tk
-from PIL import Image, ImageDraw
-
-# GUI 与 交互
-import pystray
-from pystray import MenuItem as Item
+from pathlib import Path
 from pynput import keyboard
 
-# 内部模块
-from src.utils import load_config, setup_logger,get_resource_path
-from src.core import FileOrganizer
-from src.ui import SettingsWindow
-from watchdog.observers import Observer
+# 引入核心组件
+from zenfile.utils.config import load_config
+from zenfile.utils.logger import setup_logger
+from zenfile.core.organizer import Organizer
+from zenfile.core.monitor import MonitorManager
+from zenfile.ui.tray import SystemTray
 
-# 防止双开锁
-import win32event, win32api, winerror
+# Windows 单例锁
+if platform.system() == "Windows":
+    import win32event, win32api, winerror
 
+def check_single_instance():
+    if platform.system() == "Windows":
+        mutex = win32event.CreateMutex(None, False, "Global\\ZenFile_v1_Lock")
+        if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+            return False, mutex
+        return True, mutex
+    return True, None
 
-class ZenFileApp:
-    def __init__(self, root):
-        self.root = root
-        self.logger = setup_logger()
-        self.observer = None
-        self.is_running = False
-        self.icon = None
-        self.hotkey_listener = None
+class HotkeyManager:
+    """热键管理器：支持动态重载"""
+    def __init__(self, logger, callback):
+        self.logger = logger
+        self.callback = callback
+        self.listener = None
+        self.current_hotkey = None
 
-        # 加载配置
-        self.config = load_config()
-        self.watch_dirs = self.config.get("watch_dirs", [])
-        self.hotkey_str = self.config.get("hotkey", "<ctrl>+<alt>+z")
+    def start(self, hotkey_str):
+        self.stop() # 先停止旧的
+        if not hotkey_str:
+            return
 
-        # 初始化后台逻辑
-        self.start_watching()
-        self.start_hotkey()
-
-    # --- 1. 托盘图标 ---
-    def create_icon_image(self, color):
-        """加载自定义 PNG 图标，失败则画圆点"""
-        if color == "#0078D7":
-            rel_path = "assets/icons/logo.png"
-        else:
-            rel_path = "assets/icons/pause.png"
-
+        self.current_hotkey = hotkey_str
         try:
-            icon_path = get_resource_path(rel_path)
-            if icon_path.exists():
-                return Image.open(icon_path).convert("RGBA")
+            # 封装回调，确保异常不崩溃
+            def on_activate():
+                try:
+                    self.callback()
+                except Exception as e:
+                    self.logger.error(f"快捷键回调出错: {e}")
+
+            hotkey_map = {hotkey_str: on_activate}
+            self.listener = keyboard.GlobalHotKeys(hotkey_map)
+            self.listener.start()
+            self.logger.info(f"快捷键已注册: {hotkey_str}")
         except Exception as e:
-            print(f"[Error] 图标加载失败: {e}")
+            self.logger.error(f"快捷键注册失败 [{hotkey_str}]: {e}")
 
-        # 兜底绘制
-        width, height = 64, 64
-        image = Image.new('RGBA', (width, height), (255, 255, 255, 0))
-        dc = ImageDraw.Draw(image)
-        dc.ellipse((8, 8, 56, 56), fill=color)
-        dc.ellipse((24, 24, 40, 40), fill='white')
-        return image
-
-    def build_menu(self):
-        """
-        ✅ 核心修复：
-        每次调用都根据当前状态生成全新的菜单对象。
-        不再依赖 pystray 的动态文本回调，确保 100% 刷新。
-        """
-        # 直接根据状态生成固定的字符串
-        state_text = "状态: 运行中 🟢" if self.is_running else "状态: 已暂停 🔴"
-
-        return pystray.Menu(
-            Item(state_text, self.toggle_watching),  # 第一行直接显示当前状态
-            pystray.Menu.SEPARATOR,
-            Item('⚙️ 设置', self.open_settings_ui),
-            Item('退出', self.quit_app)
-        )
-
-    def update_tray_icon(self):
-        if not self.icon: return
-
-        # 重新生成图标对象，确保 UI 线程检测到变化
-        if self.is_running:
-            self.icon.icon = self.create_icon_image("#0078D7")  # 蓝
-            self.icon.title = f"ZenFile: 运行中\n快捷键: {self.hotkey_str}"
-        else:
-            self.icon.icon = self.create_icon_image("#808080")  # 灰
-            self.icon.title = "ZenFile: 已暂停"
-
-        # 2. ✅ 核心修复：强制替换整个菜单对象
-        # 这样无论有没有缓存，下次点开必定是新的文字
-        self.icon.menu = self.build_menu()
-
-    def run_tray(self):
-        # 初始启动时创建图标和菜单
-        self.icon = pystray.Icon(
-            "ZenFile",
-            self.create_icon_image("#0078D7"),
-            "ZenFile",
-            self.build_menu()  # 使用 build_menu 初始化
-        )
-        self.update_tray_icon()  # 确保状态同步
-        self.icon.run()
-
-    # --- 2. 界面与交互 ---
-    def open_settings_ui(self, icon=None, item=None):
-        self.root.after(0, self._show_settings_window)
-
-    def _show_settings_window(self):
-        settings_win = tk.Toplevel(self.root)
-        SettingsWindow(settings_win, on_save_callback=self.reload_config)
-
-    def reload_config(self, new_config):
-        self.logger.info("配置已更新...")
-
-        was_running = self.is_running
-
-        self.config = new_config
-        self.watch_dirs = new_config.get("watch_dirs", [])
-        new_hotkey = new_config.get("hotkey", "<ctrl>+<alt>+z")
-
-        self.stop_watching()
-
-        if was_running:
-            self.start_watching()
-        else:
-            self.logger.info("保持暂停状态")
-
-        if new_hotkey != self.hotkey_str:
-            self.hotkey_str = new_hotkey
-            self.stop_hotkey()
-            self.start_hotkey()
-
-        self.update_tray_icon()
-
-    # --- 3. 监控逻辑 ---
-    def start_watching(self):
-        if self.is_running: return
-        if not self.watch_dirs: return
-
-        self.observer = Observer()
-        count = 0
-        for path_str in self.watch_dirs:
-            if path_str.startswith("~"): path_str = os.path.expanduser(path_str)
-            if os.path.exists(path_str):
-                handler = FileOrganizer(path_str, self.config, self.logger)
-                self.observer.schedule(handler, path_str, recursive=False)
-                count += 1
-
-        if count > 0:
-            self.observer.start()
-            self.is_running = True
-            self.logger.info(f"✅ 服务已启动，监控 {count} 个目录")
-        else:
-            self.logger.error("❌ 启动失败：所有路径均无效")
-
-    def stop_watching(self):
-        if self.observer:
-            self.observer.stop()
-            self.observer.join()
-            self.observer = None
-        self.is_running = False
-
-    def toggle_watching(self, icon=None, item=None):
-        self.logger.info("正在切换状态...")
-
-        # 切换逻辑
-        if self.is_running:
-            self.stop_watching()
-            msg = "自动整理已暂停"
-        else:
-            self.start_watching()
-            msg = "自动整理已恢复"
-
-        if self.icon:
-            self.icon.notify(msg)
-
-        # 强制刷新 (这里会调用 build_menu 重建菜单)
-        self.update_tray_icon()
-        self.logger.info(f"状态切换完成: {msg}")
-
-    # --- 4. 快捷键逻辑 ---
-    def start_hotkey(self):
-        def listen():
+    def stop(self):
+        if self.listener:
             try:
-                with keyboard.GlobalHotKeys({self.hotkey_str: self.toggle_watching}) as h:
-                    self.hotkey_listener = h
-                    h.join()
-            except Exception as e:
-                self.logger.error(f"快捷键注册失败: {e}")
-
-        threading.Thread(target=listen, daemon=True).start()
-
-    def stop_hotkey(self):
-        if self.hotkey_listener:
-            try:
-                self.hotkey_listener.stop()
+                self.listener.stop()
+                self.logger.info("旧快捷键监听已停止")
             except:
                 pass
-            self.hotkey_listener = None
+            self.listener = None
 
-    def quit_app(self, icon, item):
-        if self.icon:
-            self.icon.visible = False
-            self.icon.stop()
-        os._exit(0)
+    def restart(self, new_hotkey):
+        self.logger.info(f"正在更新快捷键为: {new_hotkey}")
+        self.start(new_hotkey)
 
 
-if __name__ == "__main__":
-    mutex = win32event.CreateMutex(None, False, "Global\\ZenFile_GUI_Lock")
-    if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
-        import ctypes
+def main():
+    # 单例检查
+    is_unique, mutex = check_single_instance()
+    if not is_unique:
+        sys.exit(0)
 
-        ctypes.windll.user32.MessageBoxW(0, "ZenFile 已经在运行中！", "提示", 0x40)
-        os._exit(0)
+    # 初始化
+    logger = setup_logger()
+    config = load_config()
+    logger.info(">>> ZenFile 启动中...")
 
+    #  GUI 上下文
     root = tk.Tk()
     root.withdraw()
 
-    app = ZenFileApp(root)
-    threading.Thread(target=app.run_tray, daemon=True).start()
-    root.mainloop()
+    #业务逻辑
+    organizer = Organizer(config, logger)
+    monitor_manager = MonitorManager(organizer, logger)
+    monitor_manager.start(config.get("watch_dirs", []))
+
+    # 定义退出逻辑
+    def app_shutdown():
+        logger.info("正在退出应用程序...")
+        if hotkey_manager: hotkey_manager.stop()
+        if tray and tray.icon: tray.icon.stop()
+        monitor_manager.stop()
+        try: root.quit()
+        except: pass
+        os._exit(0)
+
+    # 初始化热键管理器 (先定义，稍后传递给 Tray)
+    # 这里我们定义一个临时的 callback proxy，因为 tray 还没初始化
+    def hotkey_callback():
+        if tray: tray.toggle()
+
+    hotkey_manager = HotkeyManager(logger, hotkey_callback)
+
+    #初始化托盘
+    tray = SystemTray(root, organizer, monitor_manager, hotkey_manager, on_quit=app_shutdown)
+
+    # 启动热键
+    initial_hotkey = config.get("hotkey", "<ctrl>+<alt>+z")
+    hotkey_manager.start(initial_hotkey)
+
+    # 启动托盘线程
+    tray_thread = threading.Thread(target=tray.run, daemon=True)
+    tray_thread.start()
+
+    # 主循环
+    try:
+        root.mainloop()
+    except KeyboardInterrupt:
+        app_shutdown()
+
+if __name__ == "__main__":
+    main()
